@@ -1,15 +1,11 @@
 import { create } from "zustand";
-import { API_URL } from "../lib/services/api";
+import {
+  AuthService,
+  type UserProfile,
+} from "@/lib/services/auth.service";
 
 const DEMO_AUTH_STORAGE_KEY = "demo.auth.user";
 export const DEMO_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEMO_AUTH !== "false";
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  role: "admin" | "cashier";
-  name: string;
-}
 
 interface AuthState {
   user: UserProfile | null;
@@ -47,28 +43,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const { user, session } = await AuthService.login(email, password);
 
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.message || "เข้าสู่ระบบไม่สำเร็จ");
-      }
-
-      const { user, session } = await response.json();
-
-      // Store session in local storage for Supabase client
       if (session) {
-        localStorage.setItem("supabase.auth.token", session.access_token);
+        AuthService.persistToken(session.access_token);
       }
 
       set({ user, isLoading: false });
       return user;
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ";
+      set({ error: message, isLoading: false });
       throw err;
     }
   },
@@ -79,11 +65,13 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (DEMO_AUTH_ENABLED) {
         localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
       }
-      fetch(`${API_URL}/auth/logout`, { method: "POST" }); // Async call
-      localStorage.removeItem("supabase.auth.token");
+      AuthService.logout(); // fire-and-forget
+      AuthService.clearToken();
       set({ user: null, isLoading: false });
-    } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "ออกจากระบบไม่สำเร็จ";
+      set({ error: message, isLoading: false });
     }
   },
 
@@ -101,24 +89,20 @@ export const useAuthStore = create<AuthState>((set) => ({
         return;
       }
 
-      const token = localStorage.getItem("supabase.auth.token");
+      const token = AuthService.getPersistedToken();
       if (!token) {
         set({ user: null, isLoading: false });
         return;
       }
 
-      const response = await fetch(`${API_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const user = await response.json();
+      try {
+        const user = await AuthService.getMe(token);
         set({ user, isLoading: false });
-      } else {
-        localStorage.removeItem("supabase.auth.token");
+      } catch {
+        AuthService.clearToken();
         set({ user: null, isLoading: false });
       }
-    } catch (err: any) {
+    } catch {
       set({ user: null, isLoading: false });
     }
   },

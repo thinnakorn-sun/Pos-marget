@@ -1,4 +1,4 @@
-import { apiFetch } from "./api";
+import { apiFetch } from "./core/api-client";
 import { demoDb, DEMO_MODE_ENABLED } from "@/lib/demo/mock-db";
 
 export interface SaleItem {

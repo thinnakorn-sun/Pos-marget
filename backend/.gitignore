@@ -1,5 +1,18 @@
-node_modules
+node_modules/
+
 # Keep environment variables out of version control
 .env
+.env.*
+!.env.example
+!.env*.example
 
-/generated/prisma
+# Generated / build artifacts
+/dist/
+/coverage/
+/generated/prisma/
+*.tsbuildinfo
+
+# Local backups and temp files
+*.bak
+*.tmp
+*.swp
